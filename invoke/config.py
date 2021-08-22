@@ -499,7 +499,7 @@ class Config(DataProxy):
             },
             "tasks": {
                 "auto_dash_names": True,
-                "collection_name": "tasks",
+                "collection_name": "scripts",
                 "dedupe": True,
                 "executor_class": None,
                 "search_root": None,
