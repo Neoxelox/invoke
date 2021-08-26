@@ -1,4 +1,5 @@
 import copy
+import sys
 
 try:
     from ..vendor.lexicon import Lexicon
@@ -286,7 +287,11 @@ class ParseMachine(StateMachine):
                 self.switch_to_flag(token)
         # Unknown
         else:
-            if not self.ignore_unknown and not self.context.variadic:
+            if self.context.variadic:
+                debug("Task is variadic, arg: {!r}".format(token))
+                self.see_variadic_args(token)
+                self.see_unknown(token)
+            elif not self.ignore_unknown:
                 debug("Can't find context named {!r}, erroring".format(token))
                 self.error("No idea what {!r} is!".format(token))
             else:
@@ -416,6 +421,10 @@ class ParseMachine(StateMachine):
             if arg.value is None:
                 arg.value = value
                 break
+
+    def see_variadic_args(self, first):
+        if self.context.positional_args[0].value is None:
+            self.context.positional_args[0].value = " ".join(sys.argv[sys.argv.index(first):])
 
     def error(self, msg):
         raise ParseError(msg, self.context)
