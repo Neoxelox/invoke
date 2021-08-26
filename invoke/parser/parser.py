@@ -309,12 +309,11 @@ class ParseMachine(StateMachine):
                 self.context.name if self.context else self.context
             )
         )
+        # Ensure variadic positional arg is not None
+        if self.context and self.context.variadic:
+            self.context.positional_args[0].value = ""
         # Ensure all of context's positional args have been given.
-        if (
-            self.context
-            and self.context.missing_positional_args
-            and not self.context.variadic
-        ):
+        elif self.context and self.context.missing_positional_args:
             err = "'{}' did not receive required positional arguments: {}"
             names = ", ".join(
                 "'{}'".format(x.name)
