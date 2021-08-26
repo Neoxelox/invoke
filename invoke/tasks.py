@@ -59,6 +59,7 @@ class Task(object):
         autoprint=False,
         iterable=None,
         incrementable=None,
+        variadic=False,
     ):
         # Real callable
         self.body = body
@@ -85,6 +86,8 @@ class Task(object):
         self.times_called = 0
         # Whether to print return value post-execution
         self.autoprint = autoprint
+        # Whether to allow variadic arguments
+        self.variadic = variadic
 
     @property
     def name(self):

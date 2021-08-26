@@ -67,7 +67,7 @@ class ParserContext(object):
     .. versionadded:: 1.0
     """
 
-    def __init__(self, name=None, aliases=(), args=()):
+    def __init__(self, name=None, aliases=(), args=(), variadic=False):
         """
         Create a new ``ParserContext`` named ``name``, with ``aliases``.
 
@@ -88,6 +88,7 @@ class ParserContext(object):
         self.inverse_flags = {}  # No need for Lexicon here
         self.name = name
         self.aliases = aliases
+        self.variadic = variadic
         for arg in args:
             self.add_arg(arg)
 

@@ -286,7 +286,7 @@ class ParseMachine(StateMachine):
                 self.switch_to_flag(token)
         # Unknown
         else:
-            if not self.ignore_unknown:
+            if not self.ignore_unknown and not self.context.variadic:
                 debug("Can't find context named {!r}, erroring".format(token))
                 self.error("No idea what {!r} is!".format(token))
             else:
