@@ -259,17 +259,17 @@ class ParseMachine(StateMachine):
                 )
             )  # noqa
             self.see_value(token)
+        # Variadic args (can be absent)
+        elif self.context and self.context.variadic:
+            debug("Task is variadic, arg: {!r}".format(token))
+            self.see_variadic_args(token)
         # Positional args (must come above context-name check in case we still
         # need a posarg and the user legitimately wants to give it a value that
         # just happens to be a valid context name.)
         elif self.context and self.context.missing_positional_args:
-            if self.context.variadic:
-                debug("Task is variadic, arg: {!r}".format(token))
-                self.see_variadic_args(token)
-            else:
-                msg = "Context {!r} requires positional args, eating {!r}"
-                debug(msg.format(self.context, token))
-                self.see_positional_arg(token)
+            msg = "Context {!r} requires positional args, eating {!r}"
+            debug(msg.format(self.context, token))
+            self.see_positional_arg(token)
         # New context
         elif token in self.contexts:
             self.see_context(token)
