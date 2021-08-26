@@ -263,9 +263,13 @@ class ParseMachine(StateMachine):
         # need a posarg and the user legitimately wants to give it a value that
         # just happens to be a valid context name.)
         elif self.context and self.context.missing_positional_args:
-            msg = "Context {!r} requires positional args, eating {!r}"
-            debug(msg.format(self.context, token))
-            self.see_positional_arg(token)
+            if self.context.variadic:
+                debug("Task is variadic, arg: {!r}".format(token))
+                self.see_variadic_args(token)
+            else:
+                msg = "Context {!r} requires positional args, eating {!r}"
+                debug(msg.format(self.context, token))
+                self.see_positional_arg(token)
         # New context
         elif token in self.contexts:
             self.see_context(token)
@@ -287,11 +291,7 @@ class ParseMachine(StateMachine):
                 self.switch_to_flag(token)
         # Unknown
         else:
-            if self.context.variadic:
-                debug("Task is variadic, arg: {!r}".format(token))
-                self.see_variadic_args(token)
-                self.see_unknown(token)
-            elif not self.ignore_unknown:
+            if not self.ignore_unknown and not self.context.variadic:
                 debug("Can't find context named {!r}, erroring".format(token))
                 self.error("No idea what {!r} is!".format(token))
             else:
