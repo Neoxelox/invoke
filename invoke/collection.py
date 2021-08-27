@@ -211,7 +211,7 @@ class Collection(object):
 
         # See if the module provides a default NS to use in lieu of creating
         # our own collection.
-        for candidate in ("ns", "namespace"):
+        for candidate in ("ns", "namespace", "root"):
             obj = getattr(module, candidate, None)
             if obj and isinstance(obj, Collection):
                 # TODO: make this into Collection.clone() or similar?
