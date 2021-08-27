@@ -245,10 +245,18 @@ class ParseMachine(StateMachine):
             self.see_unknown(token)
             return
         # Flag
-        if self.context and token in self.context.flags:
+        if (
+            self.context
+            and not self.context.variadic
+            and token in self.context.flags
+        ):
             debug("Saw flag {!r}".format(token))
             self.switch_to_flag(token)
-        elif self.context and token in self.context.inverse_flags:
+        elif (
+            self.context
+            and not self.context.variadic
+            and token in self.context.inverse_flags
+        ):
             debug("Saw inverse flag {!r}".format(token))
             self.switch_to_flag(token, inverse=True)
         # Value for current flag

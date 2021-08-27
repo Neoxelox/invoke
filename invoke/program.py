@@ -753,8 +753,12 @@ class Program(object):
         # Setup
         ctx = self.parser.contexts[name]
         tuples = ctx.help_tuples()
-        docstring = inspect.getdoc(self.collection[name])
-        header = "Usage: {} [--core-opts] {} {}[other tasks here ...]"
+        task = self.collection[name]
+        docstring = inspect.getdoc(task)
+        if task.variadic:
+            header = "Usage: {} [--core-opts] {} [executable arguments...]"
+        else:
+            header = "Usage: {} [--core-opts] {} {}[other tasks here ...]"
         opts = "[--options] " if tuples else ""
         print(header.format(self.binary, name, opts))
         print("")
@@ -770,12 +774,13 @@ class Program(object):
         else:
             print(self.leading_indent + "none")
             print("")
-        print("Options:")
-        if tuples:
-            self.print_columns(tuples)
-        else:
-            print(self.leading_indent + "none")
-            print("")
+        if not task.variadic:
+            print("Options:")
+            if tuples:
+                self.print_columns(tuples)
+            else:
+                print(self.leading_indent + "none")
+                print("")
 
     def list_tasks(self):
         # Short circuit if no tasks to show (Collection now implements bool)
