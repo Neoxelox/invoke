@@ -760,7 +760,7 @@ class Program:
         task = self.collection[name]
         docstring = inspect.getdoc(task)
         if task.variadic:
-            header = "Usage: {} [--core-opts] {} [executable arguments...]"
+            header = "Usage: {} [--core-opts] {} [other arguments here...]"
         else:
             header = "Usage: {} [--core-opts] {} {}[other tasks here ...]"
         opts = "[--options] " if tuples else ""
