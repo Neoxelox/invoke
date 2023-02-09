@@ -9,9 +9,12 @@ from shared_conf import *
 extensions.extend(["sphinx.ext.autodoc"])
 
 # Autodoc settings
-autodoc_default_flags = ["members", "special-members"]
+autodoc_default_options = {
+    "members": True,
+    "special-members": True,
+}
 
 # Sister-site links to WWW
 html_theme_options["extra_nav_links"] = {
-    "Main website": "https//www.pyinvoke.org"
+    "Main website": "https://www.pyinvoke.org"
 }

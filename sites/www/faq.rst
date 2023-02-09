@@ -9,7 +9,7 @@ General project questions
 .. _invoke-split-from-fabric:
 
 Why was Invoke split off from the `Fabric <https://fabfile.org>`_ project?
--------------------------------------------------------------------------
+--------------------------------------------------------------------------
 
 Fabric (1.x and earlier) was a hybrid project implementing two feature sets:
 task execution (organization of task functions, execution of them via CLI, and
@@ -103,9 +103,6 @@ faster & cleaner, so it is the default.
 
 Calling Python or Python scripts prints all the output at the end of the run!
 -----------------------------------------------------------------------------
-
-.. note::
-    This is typically a problem under Python 3 only.
 
 The symptom is easy to spot - you're running a command that takes a few seconds
 or more to execute, it usually prints lines of text as it goes, but via

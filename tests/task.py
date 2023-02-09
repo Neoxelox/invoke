@@ -1,4 +1,4 @@
-from mock import Mock
+from unittest.mock import Mock
 from pytest import raises, skip
 
 from invoke import Context, Config, task, Task, Call, Collection
@@ -25,7 +25,7 @@ class task_:
         mod, _ = self.loader.load(name)
         return Collection.from_module(mod)
 
-    def setup(self):
+    def setup_method(self):
         self.loader = Loader(start=support)
         self.vanilla = self._load("decorators")
 
@@ -188,6 +188,16 @@ class Task_:
         t3 = Task(_func, name="bar")
         assert t1 != t3
 
+    def equality_testing_false_for_non_task_objects(self):
+        t = Task(_func, name="foo")
+        # No name attribute at all
+        assert t != object()
+        # Name attr, but not a Task
+        class Named:
+            name = "foo"
+
+        assert t != Named()
+
     class function_like_behavior:
         # Things that help them eg show up in autodoc easier
         def inherits_module_from_body(self):
@@ -205,7 +215,7 @@ class Task_:
             assert Task(_func, name="foo").name == "foo"
 
     class callability:
-        def setup(self):
+        def setup_method(self):
             @task
             def foo(c):
                 "My docstring"
@@ -248,7 +258,7 @@ class Task_:
             assert self.task.__name__ == "foo"
 
     class get_arguments:
-        def setup(self):
+        def setup_method(self):
             @task(positional=["arg_3", "arg1"], optional=["arg1"])
             def mytask(c, arg1, arg2=False, arg_3=5):
                 pass
@@ -341,7 +351,7 @@ class Task_:
             # I.e. "task --foo -f" => --foo should NOT get to pick '-f' for its
             # shortflag or '-f' is totally fucked.
             @task
-            def mytask(c, longarg, l):
+            def mytask(c, longarg, l):  # noqa
                 pass
 
             args = self._task_to_dict(mytask)
@@ -368,7 +378,7 @@ class Task_:
             assert arg.name == "longer_arg"
 
         class help:
-            def setup(self):
+            def setup_method(self):
                 @task(
                     help={
                         "simple": "key",
@@ -440,7 +450,7 @@ _ = object()
 
 
 class Call_:
-    def setup(self):
+    def setup_method(self):
         self.task = Task(Mock(__name__="mytask"))
 
     class init:

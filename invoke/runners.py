@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-
+import errno
 import locale
 import os
 import struct
@@ -8,8 +7,6 @@ import sys
 import threading
 import time
 import signal
-
-from .util import six
 
 # Import some platform-specific things at top level so they can be mocked for
 # tests.
@@ -41,10 +38,10 @@ from .terminals import (
     ready_for_reading,
     bytes_to_read,
 )
-from .util import has_fileno, isatty, ExceptionHandlingThread, encode_output
+from .util import has_fileno, isatty, ExceptionHandlingThread
 
 
-class Runner(object):
+class Runner:
     """
     Partially-abstract core command-running API.
 
@@ -351,8 +348,8 @@ class Runner(object):
         :param watchers:
             A list of `.StreamWatcher` instances which will be used to scan the
             program's ``stdout`` or ``stderr`` and may write into its ``stdin``
-            (typically ``str`` or ``bytes`` objects depending on Python
-            version) in response to patterns or other heuristics.
+            (typically ``bytes`` objects) in response to patterns or other
+            heuristics.
 
             See :doc:`/concepts/watchers` for details on this functionality.
 
@@ -379,13 +376,7 @@ class Runner(object):
             return self._run_body(command, **kwargs)
         finally:
             if not (self._asynchronous or self._disowned):
-                self._stop_everything()
-
-    def _stop_everything(self):
-        # TODO 2.0: as probably noted elsewhere, stop_timer should become part
-        # of stop() and then we can nix this. Ugh!
-        self.stop()
-        self.stop_timer()
+                self.stop()
 
     def echo(self, command):
         print(self.opts["echo_format"].format(command=command))
@@ -475,7 +466,7 @@ class Runner(object):
             # Failure objects.)
             watcher_errors = []
             thread_exceptions = []
-            for target, thread in six.iteritems(self.threads):
+            for target, thread in self.threads.items():
                 thread.join(self._thread_join_timeout(target))
                 exception = thread.exception()
                 if exception is not None:
@@ -518,7 +509,7 @@ class Runner(object):
         - ``self.streams`` - map of stream names to stream target values
         """
         opts = {}
-        for key, value in six.iteritems(self.context.config.run):
+        for key, value in self.context.config.run.items():
             runtime = kwargs.pop(key, None)
             opts[key] = value if runtime is None else runtime
         # Pull in command execution timeout, which stores config elsewhere,
@@ -646,7 +637,7 @@ class Runner(object):
             }
         # Kick off IO threads
         threads = {}
-        for target, kwargs in six.iteritems(thread_args):
+        for target, kwargs in thread_args.items():
             t = ExceptionHandlingThread(target=target, kwargs=kwargs)
             threads[target] = t
         return threads, stdout, stderr
@@ -677,8 +668,7 @@ class Runner(object):
             specific read calls.
 
         :returns:
-            A generator yielding Unicode strings (`unicode` on Python 2; `str`
-            on Python 3).
+            A generator yielding strings.
 
             Specifically, each resulting string is the result of decoding
             `read_chunk_size` bytes read from the subprocess' out/err stream.
@@ -714,7 +704,7 @@ class Runner(object):
 
         .. versionadded:: 1.0
         """
-        stream.write(encode_output(string, self.encoding))
+        stream.write(string)
         stream.flush()
 
     def _handle_output(self, buffer_, hide, output, reader):
@@ -790,10 +780,20 @@ class Runner(object):
         # read instead of once per session, which could be costly (?).
         bytes_ = None
         if ready_for_reading(input_):
-            bytes_ = input_.read(bytes_to_read(input_))
+            try:
+                bytes_ = input_.read(bytes_to_read(input_))
+            except OSError as e:
+                # Assume EBADF in this situation implies running under nohup or
+                # similar, where:
+                # - we cannot reliably detect a bad FD up front
+                # - trying to read it would explode
+                # - user almost surely doesn't care about stdin anyways
+                # and ignore it (but not other OSErrors!)
+                if e.errno != errno.EBADF:
+                    raise
             # Decode if it appears to be binary-type. (From real terminal
             # streams, usually yes; from file-like objects, often no.)
-            if bytes_ and isinstance(bytes_, six.binary_type):
+            if bytes_ and isinstance(bytes_, bytes):
                 # TODO: will decoding 1 byte at a time break multibyte
                 # character encodings? How to square interactivity with that?
                 bytes_ = self.decode(bytes_)
@@ -834,10 +834,9 @@ class Runner(object):
                 data = self.read_our_stdin(input_)
                 if data:
                     # Mirror what we just read to process' stdin.
-                    # We perform an encode so Python 3 gets bytes (streams +
-                    # str's in Python 3 == no bueno) but skip the decode step,
-                    # since there's presumably no need (nobody's interacting
-                    # with this data programmatically).
+                    # We encode to ensure bytes, but skip the decode step since
+                    # there's presumably no need (nobody's interacting with
+                    # this data programmatically).
                     self.write_proc_stdin(data)
                     # Also echo it back to local stdout (or whatever
                     # out_stream is set to) when necessary.
@@ -897,7 +896,7 @@ class Runner(object):
         # speed and memory use. Should that become false, consider using
         # StringIO or cStringIO (tho the latter doesn't do Unicode well?) which
         # is apparently even more efficient.
-        stream = u"".join(buffer_)
+        stream = "".join(buffer_)
         for watcher in self.watchers:
             for response in watcher.submit(stream):
                 self.write_proc_stdin(response)
@@ -1113,7 +1112,7 @@ class Runner(object):
 
         .. versionadded:: 1.0
         """
-        self.write_proc_stdin(u"\x03")
+        self.write_proc_stdin("\x03")
 
     def returncode(self):
         """
@@ -1137,15 +1136,6 @@ class Runner(object):
 
         .. versionadded:: 1.0
         """
-        raise NotImplementedError
-
-    def stop_timer(self):
-        """
-        Cancel an open timeout timer, if required.
-        """
-        # TODO 2.0: merge with stop() (i.e. make stop() something users extend
-        # and call super() in, instead of completely overriding, then just move
-        # this into the default implementation of stop().
         if self._timer:
             self._timer.cancel()
 
@@ -1191,7 +1181,7 @@ class Local(Runner):
     """
 
     def __init__(self, context):
-        super(Local, self).__init__(context)
+        super().__init__(context)
         # Bookkeeping var for pty use case
         self.status = None
 
@@ -1350,7 +1340,7 @@ class Local(Runner):
                 pass
 
 
-class Result(object):
+class Result:
     """
     A container for information about the result of a command execution.
 
@@ -1450,15 +1440,8 @@ class Result(object):
         """
         return self.exited
 
-    def __nonzero__(self):
-        # NOTE: This is the method that (under Python 2) determines Boolean
-        # behavior for objects.
-        return self.ok
-
     def __bool__(self):
-        # NOTE: And this is the Python 3 equivalent of __nonzero__. Much better
-        # name...
-        return self.__nonzero__()
+        return self.ok
 
     def __str__(self):
         if self.exited is not None:
@@ -1469,15 +1452,15 @@ class Result(object):
         for x in ("stdout", "stderr"):
             val = getattr(self, x)
             ret.append(
-                u"""=== {} ===
+                """=== {} ===
 {}
 """.format(
                     x, val.rstrip()
                 )
                 if val
-                else u"(no {})".format(x)
+                else "(no {})".format(x)
             )
-        return u"\n".join(ret)
+        return "\n".join(ret)
 
     def __repr__(self):
         # TODO: more? e.g. len of stdout/err? (how to represent cleanly in a
@@ -1521,8 +1504,7 @@ class Result(object):
         # TODO: preserve alternate line endings? Mehhhh
         # NOTE: no trailing \n preservation; easier for below display if
         # normalized
-        text = "\n\n" + "\n".join(getattr(self, stream).splitlines()[-count:])
-        return encode_output(text, self.encoding)
+        return "\n\n" + "\n".join(getattr(self, stream).splitlines()[-count:])
 
 
 class Promise(Result):
@@ -1576,7 +1558,7 @@ class Promise(Result):
         try:
             return self.runner._finish()
         finally:
-            self.runner._stop_everything()
+            self.runner.stop()
 
     def __enter__(self):
         return self
@@ -1617,13 +1599,5 @@ def default_encoding():
     unknown-but-presumably-text bytes, and the user has not specified an
     override.
     """
-    # Based on some experiments there is an issue with
-    # `locale.getpreferredencoding(do_setlocale=False)` in Python 2.x on
-    # Linux and OS X, and `locale.getpreferredencoding(do_setlocale=True)`
-    # triggers some global state changes. (See #274 for discussion.)
     encoding = locale.getpreferredencoding(False)
-    if six.PY2 and not WINDOWS:
-        default = locale.getdefaultlocale()[1]
-        if default is not None:
-            encoding = default
     return encoding

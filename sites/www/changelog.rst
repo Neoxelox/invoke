@@ -2,6 +2,61 @@
 Changelog
 =========
 
+- :support:`901 backported` (via :issue:`903`) Tweak test suite ``setup``
+  methods to be named ``setup_method`` so pytest stops whining about it. Patch
+  via Jesse P. Johnson.
+- :release:`2.0.0 <2023-01-16>`
+- :support:`-` Remove support for, and imports related to, all Python versions
+  less than 3.6 - including Python 2. This also includes updates to vendored
+  packages, such as removing ``six`` and upgrading ``lexicon`` to the latest
+  version; and also treatment of things like ``Mock`` use within
+  `invoke.context.MockContext` (which now expects stdlib's ``unittest.mock``
+  instead of hunting for the old standalone ``mock`` library).
+
+  Thanks to various folks for patches related to some of this work, including
+  Jesse P. Johnson who supplied multiple PRs whose commits made it in.
+
+  .. warning::
+    This change is backwards incompatible in the following scenarios:
+
+    - You use Python <3.6. Shouldn't be an issue as we now specify
+      ``python_requires`` in packaging metadata.
+    - You call ``invoke.util.encode_output`` manually for some reason. (This
+      became a noop under Python 3, so just...remove it!)
+    - You use `invoke.context.MockContext`; its ``repeat`` init kwarg changed
+      its default value from ``False`` to ``True``. This probably won't bite
+      you, but we mention it just in case you somehow relied upon the legacy
+      behavior.
+    - You subclass `invoke.runners.Runner` and/or have had to interact with its
+      ``stop`` or ``stop_timer`` methods. The latter has been merged into the
+      former, and if you are overriding ``stop``, you'll want to make sure you
+      now call ``super()`` somewhere if you were not already.
+
+- :support:`-` `Task.argspec <invoke.tasks.Task.argspec>` has changed its
+  return value; it now returns an `inspect.Signature` derived from that of the
+  task's body callable.
+
+  .. warning::
+    This change is backwards incompatible if you were using this method
+    directly.
+
+- :release:`1.7.3 <2022-09-30>`
+- :support:`- backported` Fix a non-fatal bug in our setup.py
+  ``long_description`` generation causing 1.7.0-1.7.2 to have malformed
+  description text on PyPI.
+- :release:`1.7.2 <2022-09-30>`
+- :bug:`876` Refactor CLI parser instantiation such that the
+  ``tasks.ignore_unknown_help`` feature (added in 1.7) works when Invoke is run
+  in ``--complete`` mode, i.e. in tab-completion scripts.
+- :bug:`-` Fix errors thrown when comparing `~invoke.tasks.Task` objects to
+  non-Task objects; such comparisons are now always false.
+- :release:`1.7.1 <2022-05-11>`
+- :bug:`659` Improve behavior under ``nohup``, which causes stdin to become an
+  undetectably-unreadable (but otherwise legit) file descriptor. Previously
+  this led to `OSError` even if you weren't expecting anything on stdin; we now
+  trap this specific case and silently ignore it, allowing execution to
+  continue. Thanks to ``@kingkisskill`` for initial report and to Ryan Stoner
+  for followup and workshopping.
 - :release:`1.7.0 <2022-03-18>`
 - :feature:`793` Add a new ``tasks.ignore_unknown_help`` config option for
   users who hand their tasks centrally-defined argument help dictionaries; it

@@ -10,27 +10,16 @@ import sys
 # which is the only spot that performs this try/except to allow repackaged
 # Invoke to function (e.g. distro packages which unvendor the vendored bits and
 # thus must import our 'vendored' stuff from the overall environment.)
-# All other uses of six, Lexicon, etc should do 'from .util import six' etc.
+# All other uses of Lexicon, etc should do 'from .util import lexicon' etc.
 # Saves us from having to update the same logic in a dozen places.
 # TODO: would this make more sense to put _into_ invoke.vendor? That way, the
 # import lines which now read 'from .util import <third party stuff>' would be
 # more obvious. Requires packagers to leave invoke/vendor/__init__.py alone tho
-# NOTE: we also grab six.moves internals directly so other modules don't have
-# to worry about it (they can't rely on the imported 'six' directly via
-# attribute access, since six.moves does import shenanigans.)
 try:
     from .vendor.lexicon import Lexicon  # noqa
-    from .vendor import six
-    from .vendor.six.moves import reduce  # noqa
-
-    if six.PY3:
-        from .vendor import yaml3 as yaml  # noqa
-    else:
-        from .vendor import yaml2 as yaml  # noqa
+    from .vendor import yaml  # noqa
 except ImportError:
     from lexicon import Lexicon  # noqa
-    import six
-    from six.moves import reduce  # noqa
     import yaml  # noqa
 
 
@@ -137,29 +126,6 @@ def isatty(stream):
     return False
 
 
-def encode_output(string, encoding):
-    """
-    Transform string-like object ``string`` into bytes via ``encoding``.
-
-    :returns: A byte-string (``str`` on Python 2, ``bytes`` on Python 3.)
-
-    .. versionadded:: 1.0
-    """
-    # Encode under Python 2 only, because of the common problem where
-    # sys.stdout/err on Python 2 end up using sys.getdefaultencoding(), which
-    # is frequently NOT the same thing as the real local terminal encoding
-    # (reflected as sys.stdout.encoding). I.e. even when sys.stdout.encoding is
-    # UTF-8, ascii is still actually used, and explodes.
-    # Python 3 doesn't have this problem, so we delegate encoding to the
-    # io.*Writer classes involved.
-    if six.PY2:
-        # TODO: split up encoding settings (currently, the one we are given -
-        # often a Runner.encoding value - is used for both input and output),
-        # only use the one for 'local encoding' here.
-        string = string.encode(encoding)
-    return string
-
-
 def helpline(obj):
     """
     Yield an object's first docstring line, or None if there was no docstring.
@@ -203,7 +169,7 @@ class ExceptionHandlingThread(threading.Thread):
         ``**kwargs`` for easier display of thread identity when raising
         captured exceptions.
         """
-        super(ExceptionHandlingThread, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         # No record of why, but Fabric used daemon threads ever since the
         # switch from select.select, so let's keep doing that.
         self.daemon = True
@@ -234,7 +200,7 @@ class ExceptionHandlingThread(threading.Thread):
                 # worker body, orthogonal to how exception handling works
                 self._run()
             else:
-                super(ExceptionHandlingThread, self).run()
+                super().run()
         except BaseException:
             # Store for actual reraising later
             self.exc_info = sys.exc_info()

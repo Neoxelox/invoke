@@ -1,11 +1,8 @@
-import io
 import os
 import sys
 
 import pytest
 from pytest_relaxed import trap
-
-from invoke.util import six
 
 from invoke import run
 from invoke._version import __version__
@@ -87,40 +84,25 @@ class Main:
             )
 
     class funky_characters_in_stdout:
-        def setup(self):
-            class BadlyBehavedStdout(io.TextIOBase):
-                def write(self, data):
-                    if six.PY2 and not isinstance(data, six.binary_type):
-                        data.encode("ascii")
-
-            self.bad_stdout = BadlyBehavedStdout()
-            # Mehhh at 'subclassing' via inner classes =/
-            _setup(self)
-
         @only_utf8
         def basic_nonstandard_characters(self):
             os.chdir("_support")
             # Crummy "doesn't explode with decode errors" test
             cmd = ("type" if WINDOWS else "cat") + " tree.out"
-            run(cmd, hide="stderr", out_stream=self.bad_stdout)
+            run(cmd, hide="stderr")
 
         @only_utf8
         def nonprinting_bytes(self):
             # Seriously non-printing characters (i.e. non UTF8) also don't
             # asplode (they would print as escapes normally, but still)
-            run("echo '\xff'", hide="stderr", out_stream=self.bad_stdout)
+            run("echo '\xff'", hide="stderr")
 
         @only_utf8
         def nonprinting_bytes_pty(self):
             if WINDOWS:
                 return
             # PTY use adds another utf-8 decode spot which can also fail.
-            run(
-                "echo '\xff'",
-                pty=True,
-                hide="stderr",
-                out_stream=self.bad_stdout,
-            )
+            run("echo '\xff'", pty=True, hide="stderr")
 
     class ptys:
         def complex_nesting_under_ptys_doesnt_break(self):

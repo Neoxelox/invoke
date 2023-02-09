@@ -2,11 +2,7 @@ import os
 import re
 from contextlib import contextmanager
 from itertools import cycle
-
-try:
-    from invoke.vendor.six import raise_from, iteritems, string_types
-except ImportError:
-    from six import raise_from, iteritems, string_types
+from unittest.mock import Mock
 
 from .config import Config, DataProxy
 from .exceptions import Failure, AuthFailure, ResponseNotAccepted
@@ -227,10 +223,8 @@ class Context(DataProxy):
             # For now that has been judged unnecessary complexity.
             if isinstance(failure.reason, ResponseNotAccepted):
                 # NOTE: not bothering with 'reason' here, it's pointless.
-                # NOTE: using raise_from(..., None) to suppress Python 3's
-                # "helpful" multi-exception output. It's confusing here.
                 error = AuthFailure(result=failure.result, prompt=prompt)
-                raise_from(error, None)
+                raise error
             # Reraise for any other error so it bubbles up normally.
             else:
                 raise
@@ -393,11 +387,9 @@ class MockContext(Context):
     Primarily useful for testing Invoke-using codebases.
 
     .. note::
-        If this class' constructor is able to import the ``Mock`` class at
-        runtime (via the ``mock`` or ``unittest.mock`` modules, in that order)
-        it will wraps its ``run``, etc methods in ``Mock`` objects. This allows
-        you to easily assert that the methods (still returning the values you
-        prepare them with) were actually called.
+        This class wraps its ``run``, etc methods in `unittest.mock.Mock`
+        objects. This allows you to easily assert that the methods (still
+        returning the values you prepare them with) were actually called.
 
     .. note::
         Methods not given `Results <.Result>` to yield will raise
@@ -406,7 +398,7 @@ class MockContext(Context):
 
     .. versionadded:: 1.0
     .. versionchanged:: 1.5
-        Added conditional ``Mock`` wrapping of ``run`` and ``sudo``.
+        Added ``Mock`` wrapping of ``run`` and ``sudo``.
     """
 
     def __init__(self, config=None, **kwargs):
@@ -449,7 +441,7 @@ class MockContext(Context):
             Similarly, iterable results are normally exhausted once, but when
             this setting is enabled, they are wrapped in `itertools.cycle`.
 
-            Default: ``False`` (for backwards compatibility reasons).
+            Default: ``True``.
 
         :raises:
             ``TypeError``, if the values given to ``run`` or other kwargs
@@ -461,29 +453,20 @@ class MockContext(Context):
             Added support for regex dict keys.
         .. versionchanged:: 1.5
             Added the ``repeat`` keyword argument.
+        .. versionchanged:: 2.0
+            Changed ``repeat`` default value from ``False`` to ``True``.
         """
-        # Figure out if we can support Mock in the current environment
-        Mock = None
-        try:
-            from mock import Mock
-        except ImportError:
-            try:
-                from unittest.mock import Mock
-            except ImportError:
-                pass
         # Set up like any other Context would, with the config
-        super(MockContext, self).__init__(config)
+        super().__init__(config)
         # Pull out behavioral kwargs
-        # TODO 2.0: Jesus tap-dancing Christ this needs to default to True, it
-        # gets me every single time
-        self._set("__repeat", kwargs.pop("repeat", False))
+        self._set("__repeat", kwargs.pop("repeat", True))
         # The rest must be things like run/sudo - mock Context method info
-        for method, results in iteritems(kwargs):
+        for method, results in kwargs.items():
             # For each possible value type, normalize to iterable of Result
             # objects (possibly repeating).
-            singletons = tuple([Result, bool] + list(string_types))
+            singletons = (Result, bool, str)
             if isinstance(results, dict):
-                for key, value in iteritems(results):
+                for key, value in results.items():
                     results[key] = self._normalize(value)
             elif isinstance(results, singletons) or hasattr(
                 results, "__iter__"
@@ -495,20 +478,19 @@ class MockContext(Context):
                 raise TypeError(err.format(type(results)))
             # Save results for use by the method
             self._set("__{}".format(method), results)
-            # Wrap the method in a Mock, if applicable
-            if Mock is not None:
-                self._set(method, Mock(wraps=getattr(self, method)))
+            # Wrap the method in a Mock
+            self._set(method, Mock(wraps=getattr(self, method)))
 
     def _normalize(self, value):
         # First turn everything into an iterable
-        if not hasattr(value, "__iter__") or isinstance(value, string_types):
+        if not hasattr(value, "__iter__") or isinstance(value, str):
             value = [value]
         # Then turn everything within into a Result
         results = []
         for obj in value:
             if isinstance(obj, bool):
                 obj = Result(exited=0 if obj else 1)
-            elif isinstance(obj, string_types):
+            elif isinstance(obj, str):
                 obj = Result(obj)
             results.append(obj)
         # Finally, turn that iterable into an iteratOR, depending on repeat
@@ -529,7 +511,7 @@ class MockContext(Context):
                 except KeyError:
                     # TODO: could optimize by skipping this if not any regex
                     # objects in keys()?
-                    for key, value in iteritems(obj):
+                    for key, value in obj.items():
                         if hasattr(key, "match") and key.match(command):
                             obj = value
                             break
@@ -546,7 +528,8 @@ class MockContext(Context):
                 result.command = command
             return result
         except (AttributeError, IndexError, KeyError, StopIteration):
-            raise_from(NotImplementedError(command), None)
+            # raise_from(NotImplementedError(command), None)
+            raise NotImplementedError(command)
 
     def run(self, command, *args, **kwargs):
         # TODO: perform more convenience stuff associating args/kwargs with the

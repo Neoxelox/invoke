@@ -1,4 +1,4 @@
-from mock import Mock
+from unittest.mock import Mock
 import pytest
 
 from invoke import Collection, Config, Context, Executor, Task, call, task
@@ -13,7 +13,7 @@ pytestmark = pytest.mark.usefixtures("integration")
 
 
 class Executor_:
-    def setup(self):
+    def setup_method(self):
         self.task1 = Task(Mock(return_value=7))
         self.task2 = Task(Mock(return_value=10), pre=[self.task1])
         self.task3 = Task(Mock(), pre=[self.task1])

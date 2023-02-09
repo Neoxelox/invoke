@@ -55,7 +55,7 @@ def flag_key(x):
 
 # Named slightly more verbose so Sphinx references can be unambiguous.
 # Got real sick of fully qualified paths.
-class ParserContext(object):
+class ParserContext:
     """
     Parsing context with knowledge of flags & their format.
 
@@ -238,7 +238,6 @@ class ParserContext(object):
         # having to call to_flag on 1st name of an Argument is just dumb.
         # To pass in an Argument object to help_for may require moderate
         # changes?
-        # Cast to list to ensure non-generator on Python 3.
         return list(
             map(
                 lambda x: self.help_for(to_flag(x.name)),

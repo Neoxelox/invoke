@@ -1,9 +1,10 @@
 import json
 import os
 import sys
+from io import BytesIO
 
-from invoke.util import six, Lexicon
-from mock import patch, Mock, ANY
+from invoke.util import Lexicon
+from unittest.mock import patch, Mock, ANY
 import pytest
 from pytest import skip
 from pytest_relaxed import trap
@@ -460,8 +461,8 @@ ohnoz!
                 Result(
                     command="meh",
                     exited=54,
-                    stdout=u"this is not ascii: \u1234",
-                    stderr=u"this is also not ascii: \u4321",
+                    stdout="this is not ascii: \u1234",
+                    stderr="this is also not ascii: \u4321",
                     encoding="utf-8",
                     hide=("stdout", "stderr"),
                 )
@@ -487,7 +488,7 @@ Stderr:
 this is also not ascii: \xe4\x8c\xa1
 
 """
-            got = six.BytesIO.getvalue(sys.stderr)
+            got = BytesIO.getvalue(sys.stderr)
             assert got == expected
 
         class Exit_:
@@ -1192,7 +1193,7 @@ Default 'build' task: .all
                     )
 
             class json:
-                def setup(self):
+                def setup_method(self):
                     # Stored expected data as an actual JSON file cuz it's big
                     # & looks like crap if inlined. Plus by round-tripping it
                     # we remove the pretty-printing. Win-win?

@@ -1,5 +1,3 @@
-from __future__ import unicode_literals, print_function
-
 import getpass
 import inspect
 import json
@@ -7,8 +5,6 @@ import os
 import sys
 import textwrap
 from importlib import import_module  # buffalo buffalo
-
-from .util import six
 
 from . import Collection, Config, Executor, FilesystemLoader
 from .completion.complete import complete, print_completion_script
@@ -18,7 +14,7 @@ from .terminals import pty_size
 from .util import debug, enable_logging, helpline
 
 
-class Program(object):
+class Program:
     """
     Manages top-level CLI invocation, typically via ``setup.py`` entrypoints.
 
@@ -261,7 +257,7 @@ class Program(object):
         self.version = "unknown" if version is None else version
         self.namespace = namespace
         self._name = name
-        # TODO 2.0: rename binary to binary_help_name or similar. (Or write
+        # TODO 3.0: rename binary to binary_help_name or similar. (Or write
         # code to autogenerate it from binary_names.)
         self._binary = binary
         self._binary_names = binary_names
@@ -505,7 +501,7 @@ class Program(object):
         self.list_depth = self.args["list-depth"].value
         if list_root:
             # Not just --list, but --list some-root - do moar work
-            if isinstance(list_root, six.string_types):
+            if isinstance(list_root, str):
                 self.list_root = list_root
                 try:
                     sub = self.collection.subcollection_from_path(list_root)
@@ -523,6 +519,9 @@ class Program(object):
                 core=self.core,
                 initial_context=self.initial_context,
                 collection=self.collection,
+                # NOTE: can't reuse self.parser as it has likely been mutated
+                # between when it was set and now.
+                parser=self._make_parser(),
             )
 
         # Fallback behavior if no tasks were given & no default specified
@@ -583,7 +582,7 @@ class Program(object):
         if argv is None:
             argv = sys.argv
             debug("argv was None; using sys.argv: {!r}".format(argv))
-        elif isinstance(argv, six.string_types):
+        elif isinstance(argv, str):
             argv = argv.split()
             debug("argv was string-like; splitting: {!r}".format(argv))
         self.argv = argv
@@ -627,7 +626,7 @@ class Program(object):
         """
         return self._binary_names or [self.called_as]
 
-    # TODO 2.0: ugh rename this or core_args, they are too confusing
+    # TODO 3.0: ugh rename this or core_args, they are too confusing
     @property
     def args(self):
         """
@@ -717,6 +716,14 @@ class Program(object):
             if arg.got_value:
                 context.args[key]._value = arg._value
 
+    def _make_parser(self):
+        return Parser(
+            initial=self.initial_context,
+            contexts=self.collection.to_contexts(
+                ignore_unknown_help=self.config.tasks.ignore_unknown_help
+            ),
+        )
+
     def parse_tasks(self):
         """
         Parse leftover args, which are typically tasks & per-task args.
@@ -731,12 +738,7 @@ class Program(object):
 
         .. versionadded:: 1.0
         """
-        self.parser = Parser(
-            initial=self.initial_context,
-            contexts=self.collection.to_contexts(
-                ignore_unknown_help=self.config.tasks.ignore_unknown_help
-            ),
-        )
+        self.parser = self._make_parser()
         debug("Parsing tasks against {!r}".format(self.collection))
         result = self.parser.parse_argv(self.core.unparsed)
         self.core_via_tasks = result.pop(0)
@@ -809,7 +811,7 @@ class Program(object):
         pairs = []
         indent = len(ancestors) * self.indent
         ancestor_path = ".".join(x for x in ancestors)
-        for name, task in sorted(six.iteritems(coll.tasks)):
+        for name, task in sorted(coll.tasks.items()):
             is_default = name == coll.default
             # Start with just the name and just the aliases, no prefixes or
             # dots.
@@ -844,7 +846,7 @@ class Program(object):
             pairs.append((full, helpline(task)))
         # Determine whether we're at max-depth or not
         truncate = self.list_depth and (len(ancestors) + 1) >= self.list_depth
-        for name, subcoll in sorted(six.iteritems(coll.collections)):
+        for name, subcoll in sorted(coll.collections.items()):
             displayname = name
             if ancestors or self.list_root:
                 displayname = ".{}".format(displayname)

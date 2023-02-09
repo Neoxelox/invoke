@@ -3,11 +3,15 @@ import os
 import sys
 import termios
 
-from invoke.vendor.six import iteritems
 import pytest
-from mock import patch
+from unittest.mock import patch
 
 from _util import support
+
+# Set up icecream globally for convenience.
+from icecream import install
+
+install()
 
 
 # pytest seems to tweak logging such that Invoke's debug logs go to stderr,
@@ -15,8 +19,8 @@ from _util import support
 # order to test low level terminal IO stuff, as we do!)
 # So, we explicitly turn default logging back down.
 # NOTE: no real better place to put this than here
-# TODO: once pytest-relaxed works with pytest 3.3, see if we can use its new
-# logging functionality to remove the need for this.
+# TODO: see if we can use modern pytest's logging functionality to remove the
+# need for this, now that pytest-relaxed was modernized
 logging.basicConfig(level=logging.INFO)
 
 
@@ -63,7 +67,7 @@ def clean_sys_modules():
     yield
     # Iterate over another copy to avoid ye olde mutate-during-iterate problem
     # NOTE: cannot simply 'sys.modules = snapshot' as that is warned against
-    for name, module in iteritems(sys.modules.copy()):
+    for name, module in sys.modules.copy().items():
         # Delete anything newly added (imported)
         if name not in snapshot:
             del sys.modules[name]

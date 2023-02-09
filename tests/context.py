@@ -3,7 +3,7 @@ import pickle
 import re
 import sys
 
-from mock import patch, Mock, call
+from unittest.mock import patch, Mock, call
 from pytest_relaxed import trap
 from pytest import skip, raises, mark
 
@@ -22,6 +22,7 @@ from _util import mock_subprocess, _Dummy
 
 
 local_path = "invoke.config.Local"
+_escaped_prompt = re.escape(Config().sudo.prompt)
 
 
 class Context_:
@@ -62,7 +63,7 @@ class Context_:
     class configuration_proxy:
         "Dict-like proxy for self.config"
 
-        def setup(self):
+        def setup_method(self):
             config = Config(defaults={"foo": "bar", "biz": {"baz": "boz"}})
             self.c = Context(config=config)
 
@@ -132,7 +133,7 @@ class Context_:
             assert self.c.biz.otherbaz == "otherboz"
 
     class cwd:
-        def setup(self):
+        def setup_method(self):
             self.c = Context()
 
         def simple(self):
@@ -152,8 +153,7 @@ class Context_:
             assert self.c.cwd == os.path.join("~b", "c")
 
     class cd:
-        def setup(self):
-            self.escaped_prompt = re.escape(Config().sudo.prompt)
+        _escaped_prompt = re.escape(Config().sudo.prompt)
 
         @patch(local_path)
         def should_apply_to_run(self, Local):
@@ -226,9 +226,6 @@ class Context_:
             assert runner.run.call_args[0][0] == cmd
 
     class prefix:
-        def setup(self):
-            self.escaped_prompt = re.escape(Config().sudo.prompt)
-
         @patch(local_path)
         def prefixes_should_apply_to_run(self, Local):
             runner = Local.return_value
@@ -294,9 +291,6 @@ class Context_:
             assert runner.run.call_args[0][0] == "ls"
 
     class sudo:
-        def setup(self):
-            self.escaped_prompt = re.escape(Config().sudo.prompt)
-
         @patch(local_path)
         def prefixes_command_with_sudo(self, Local):
             runner = Local.return_value
@@ -392,22 +386,22 @@ class Context_:
 
         def autoresponds_with_password_kwarg(self):
             # NOTE: technically duplicates the unitty test(s) in watcher tests.
-            expected = [(self.escaped_prompt, "secret\n")]
+            expected = [(_escaped_prompt, "secret\n")]
             self._expect_responses(expected, kwargs={"password": "secret"})
 
         def honors_configured_sudo_password(self):
             config = Config(overrides={"sudo": {"password": "secret"}})
-            expected = [(self.escaped_prompt, "secret\n")]
+            expected = [(_escaped_prompt, "secret\n")]
             self._expect_responses(expected, config=config)
 
         def sudo_password_kwarg_wins_over_config(self):
             config = Config(overrides={"sudo": {"password": "notsecret"}})
             kwargs = {"password": "secret"}
-            expected = [(self.escaped_prompt, "secret\n")]
+            expected = [(_escaped_prompt, "secret\n")]
             self._expect_responses(expected, config=config, kwargs=kwargs)
 
         class auto_response_merges_with_other_responses:
-            def setup(self):
+            def setup_method(self):
                 class DummyWatcher(StreamWatcher):
                     def submit(self, stream):
                         pass
@@ -428,7 +422,7 @@ class Context_:
                 # Only remaining item in list should be our sudo responder
                 assert len(watchers) == 1
                 assert isinstance(watchers[0], FailingResponder)
-                assert watchers[0].pattern == self.escaped_prompt
+                assert watchers[0].pattern == _escaped_prompt
 
             @patch(local_path)
             def config_only(self, Local):
@@ -446,7 +440,7 @@ class Context_:
                 # Only remaining item in list should be our sudo responder
                 assert len(watchers) == 1
                 assert isinstance(watchers[0], FailingResponder)
-                assert watchers[0].pattern == self.escaped_prompt
+                assert watchers[0].pattern == _escaped_prompt
 
             @patch(local_path)
             def config_use_does_not_modify_config(self, Local):
@@ -490,7 +484,7 @@ class Context_:
                 assert len(watchers) == 1
                 assert conf_watcher not in watchers  # Extra sanity
                 assert isinstance(watchers[0], FailingResponder)
-                assert watchers[0].pattern == self.escaped_prompt
+                assert watchers[0].pattern == _escaped_prompt
 
         @patch(local_path)
         def passes_through_other_run_kwargs(self, Local):
@@ -625,9 +619,8 @@ class MockContext_:
         with raises(NotImplementedError):
             MockContext().run("onoz I did not anticipate this would happen")
 
-    def repeat_True_does_not_consume_results(self):
+    def does_not_consume_results_by_default(self):
         mc = MockContext(
-            repeat=True,
             run=dict(
                 singleton=True,  # will repeat
                 wassup=Result("yo"),  # ditto
@@ -643,6 +636,26 @@ class MockContext_:
         assert mc.run("iterable").stdout == "tick"  # not consumed
         assert mc.run("iterable").stdout == "tock"
 
+    def consumes_singleton_results_when_repeat_False(self):
+        mc = MockContext(
+            repeat=False,
+            run=dict(
+                singleton=True,
+                wassup=Result("yo"),
+                iterable=[Result("tick"), Result("tock")],
+            ),
+        )
+        assert mc.run("singleton").ok
+        with raises(NotImplementedError):  # was consumed
+            mc.run("singleton")
+        assert mc.run("wassup").ok
+        with raises(NotImplementedError):  # was consumed
+            mc.run("wassup")
+        assert mc.run("iterable").stdout == "tick"
+        assert mc.run("iterable").stdout == "tock"
+        with raises(NotImplementedError):  # was consumed
+            assert mc.run("iterable")
+
     def sudo_also_covered(self):
         c = MockContext(sudo=Result(stderr="super duper"))
         assert c.sudo("doesn't mattress").stderr == "super duper"
@@ -653,7 +666,7 @@ class MockContext_:
         else:
             assert False, "Did not get a NotImplementedError for sudo!"
 
-    class exhausted_return_values_also_raise_NotImplementedError:
+    class exhausted_nonrepeating_return_values_also_raise_NotImplementedError:
         def _expect_NotImplementedError(self, context):
             context.run("something")
             try:
@@ -664,19 +677,23 @@ class MockContext_:
                 assert False, "Didn't raise NotImplementedError"
 
         def single_value(self):
-            self._expect_NotImplementedError(MockContext(run=Result("meh")))
+            self._expect_NotImplementedError(
+                MockContext(run=Result("meh"), repeat=False)
+            )
 
         def iterable(self):
-            self._expect_NotImplementedError(MockContext(run=[Result("meh")]))
+            self._expect_NotImplementedError(
+                MockContext(run=[Result("meh")], repeat=False)
+            )
 
         def mapping_to_single_value(self):
             self._expect_NotImplementedError(
-                MockContext(run={"something": Result("meh")})
+                MockContext(run={"something": Result("meh")}, repeat=False)
             )
 
         def mapping_to_iterable(self):
             self._expect_NotImplementedError(
-                MockContext(run={"something": [Result("meh")]})
+                MockContext(run={"something": [Result("meh")]}, repeat=False)
             )
 
     def unexpected_kwarg_type_yields_TypeError(self):
@@ -730,40 +747,11 @@ class MockContext_:
             mc.set_result_for("sudo", "foo", Result("biz"))
             assert mc.sudo("foo").stdout == "biz"
 
-    class mock_wrapping:
-        def setup(self):
-            results = {"foo": Result("bar")}
-            self.kwargs = dict(run=results, sudo=results)
-            self.mock_module = Mock(Mock=Mock)  # buffalo buffalo
-
-        # TODO: be nice if pytest-relaxed supported class level fixtures, if
-        # only I knew the guy who wrote that...
-        def does_not_wrap_when_no_mock_library_present(
-            self, clean_sys_modules
-        ):
-            for module in ("unittest.mock", "mock"):
-                sys.modules[module] = None
-            mc = MockContext(**self.kwargs)
-            assert not isinstance(mc.run, Mock)
-
-        def wraps_when_mock_importable(self, clean_sys_modules):
-            sys.modules["mock"] = self.mock_module
-            sys.modules["unittest.mock"] = None
-            mc = MockContext(**self.kwargs)
-            assert isinstance(mc.run, Mock)
-            assert isinstance(mc.sudo, Mock)
-
-        def wraps_when_unittest_mock_importable(self, clean_sys_modules):
-            sys.modules["mock"] = None
-            sys.modules["unittest.mock"] = self.mock_module
-            mc = MockContext(**self.kwargs)
-            assert isinstance(mc.run, Mock)
-            assert isinstance(mc.sudo, Mock)
-
-        def prefers_direct_mock_over_stdlib(self, clean_sys_modules):
-            preferred, other = Mock(), Mock()
-            sys.modules["mock"] = preferred
-            sys.modules["unittest.mock"] = other
-            MockContext(**self.kwargs)
-            assert preferred.Mock.call_count == 2
-            assert other.Mock.call_count == 0
+    def wraps_run_and_sudo_with_Mock(self, clean_sys_modules):
+        sys.modules["mock"] = None  # legacy
+        sys.modules["unittest.mock"] = Mock(Mock=Mock)  # buffalo buffalo
+        mc = MockContext(
+            run={"foo": Result("bar")}, sudo={"foo": Result("bar")}
+        )
+        assert isinstance(mc.run, Mock)
+        assert isinstance(mc.sudo, Mock)

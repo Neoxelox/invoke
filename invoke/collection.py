@@ -1,14 +1,14 @@
 import copy
 import types
 
-from .util import six, Lexicon, helpline
+from .util import Lexicon, helpline
 
 from .config import merge_dicts, copy_dict
 from .parser import Context as ParserContext
 from .tasks import Task
 
 
-class Collection(object):
+class Collection:
     """
     A collection of executable tasks. See :doc:`/concepts/namespaces`.
 
@@ -103,13 +103,13 @@ class Collection(object):
             self.auto_dash_names = True
         # Name if applicable
         args = list(args)
-        if args and isinstance(args[0], six.string_types):
+        if args and isinstance(args[0], str):
             self.name = self.transform(args.pop(0))
         # Dispatch args/kwargs
         for arg in args:
             self._add_object(arg)
         # Dispatch kwargs
-        for name, obj in six.iteritems(kwargs):
+        for name, obj in kwargs.items():
             self._add_object(obj, name)
 
     def _add_object(self, obj, name=None):
@@ -303,9 +303,7 @@ class Collection(object):
         name = self.transform(name)
         # Test for conflict
         if name in self.tasks:
-            err = (
-                "Name conflict: this collection has a task named {!r} already"
-            )  # noqa
+            err = "Name conflict: this collection has a task named {!r} already"  # noqa
             raise ValueError(err.format(name))
         # Insert
         self.collections[name] = coll
@@ -419,7 +417,7 @@ class Collection(object):
             Added the ``ignore_unknown_help`` kwarg.
         """
         result = []
-        for primary, aliases in six.iteritems(self.task_names):
+        for primary, aliases in self.task_names.items():
             task = self[primary]
             result.append(
                 ParserContext(
@@ -486,11 +484,11 @@ class Collection(object):
         new_ = Lexicon()
         # Lexicons exhibit only their real keys in most places, so this will
         # only grab those, not aliases.
-        for key, value in six.iteritems(old):
+        for key, value in old.items():
             # Deepcopy the value so we're not just copying a reference
             new_[self.transform(key)] = copy.deepcopy(value)
         # Also copy all aliases, which are string-to-string key mappings
-        for key, value in six.iteritems(old.aliases):
+        for key, value in old.aliases.items():
             new_.alias(from_=self.transform(key), to=self.transform(value))
         return new_
 
@@ -511,13 +509,11 @@ class Collection(object):
         """
         ret = {}
         # Our own tasks get no prefix, just go in as-is: {name: [aliases]}
-        for name, task in six.iteritems(self.tasks):
+        for name, task in self.tasks.items():
             ret[name] = list(map(self.transform, task.aliases))
         # Subcollection tasks get both name + aliases prefixed
-        for coll_name, coll in six.iteritems(self.collections):
-            for task_name, aliases in six.iteritems(coll.task_names):
-                # Cast to list to handle Py3 map() 'map' return value,
-                # so we can add to it down below if necessary.
+        for coll_name, coll in self.collections.items():
+            for task_name, aliases in coll.task_names.items():
                 aliases = list(
                     map(lambda x: self.subtask_name(coll_name, x), aliases)
                 )

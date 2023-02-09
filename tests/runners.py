@@ -1,3 +1,4 @@
+import errno
 import os
 import signal
 import struct
@@ -5,15 +6,13 @@ import sys
 import termios
 import threading
 import types
-
+from io import StringIO
 from io import BytesIO
 from itertools import chain, repeat
 
-from invoke.vendor.six import StringIO, b, PY2, iteritems
-
 from pytest import raises, skip
 from pytest_relaxed import trap
-from mock import patch, Mock, call
+from unittest.mock import patch, Mock, call
 
 from invoke import (
     CommandTimedOut,
@@ -71,8 +70,8 @@ def _runner(out="", err="", **kwargs):
     runner = klass(Context(config=Config(overrides=kwargs)))
     if "exits" in kwargs:
         runner.returncode = Mock(return_value=kwargs.pop("exits"))
-    out_file = BytesIO(b(out))
-    err_file = BytesIO(b(err))
+    out_file = BytesIO(out.encode())
+    err_file = BytesIO(err.encode())
     runner.read_proc_stdout = out_file.read
     runner.read_proc_stderr = err_file.read
     return runner
@@ -85,14 +84,14 @@ def _expect_platform_shell(shell):
         assert shell == "/bin/bash"
 
 
-def make_tcattrs(cc_is_ints=True, echo=False):
+def _make_tcattrs(cc_is_ints=True, echo=False):
     # Set up the control character sub-array; it's technically platform
     # dependent so we need to be dynamic.
     # NOTE: setting this up so we can test both potential values for
     # the 'cc' members...docs say ints, reality says one-byte
     # bytestrings...
     cc_base = [None] * (max(termios.VMIN, termios.VTIME) + 1)
-    cc_ints, cc_bytes = cc_base[:], cc_base[:]
+    cc_ints, cc_bytes = cc_base.copy(), cc_base.copy()
     cc_ints[termios.VMIN], cc_ints[termios.VTIME] = 1, 0
     cc_bytes[termios.VMIN], cc_bytes[termios.VTIME] = b"\x01", b"\x00"
     # Set tcgetattr to look like it's already cbroken...
@@ -122,7 +121,7 @@ class _TimingOutRunner(_Dummy):
 
 
 class Runner_:
-    _stop_methods = ["generate_result", "stop", "stop_timer"]
+    _stop_methods = ["generate_result", "stop"]
 
     # NOTE: these copies of _run and _runner form the base case of "test Runner
     # subclasses via self._run/_runner helpers" functionality. See how e.g.
@@ -407,12 +406,9 @@ class Runner_:
             with patch("invoke.runners.locale") as fake_locale:
                 fake_locale.getdefaultlocale.return_value = ("meh", "UHF-8")
                 fake_locale.getpreferredencoding.return_value = "FALLBACK"
-                expected = "UHF-8" if (PY2 and not WINDOWS) else "FALLBACK"
-                assert self._runner().default_encoding() == expected
+                assert self._runner().default_encoding() == "FALLBACK"
 
         def falls_back_to_defaultlocale_when_preferredencoding_is_None(self):
-            if PY2:
-                skip()
             with patch("invoke.runners.locale") as fake_locale:
                 fake_locale.getdefaultlocale.return_value = (None, None)
                 fake_locale.getpreferredencoding.return_value = "FALLBACK"
@@ -622,6 +618,22 @@ class Runner_:
             )
             assert not Fake.close_proc_stdin.called
 
+        @patch("invoke.runners.sys.stdin")
+        def EBADF_on_stdin_read_ignored(self, fake_stdin):
+            # Issue #659: nohup is a jerk
+            fake_stdin.read.side_effect = OSError(errno.EBADF, "Ugh")
+            # No boom == fixed
+            self._runner().run(_)
+
+        @patch("invoke.runners.sys.stdin")
+        def non_EBADF_on_stdin_read_not_ignored(self, fake_stdin):
+            # Issue #659: nohup is a jerk, inverse case
+            eio = OSError(errno.EIO, "lol")
+            fake_stdin.read.side_effect = eio
+            with raises(ThreadException) as info:
+                self._runner().run(_)
+            assert info.value.exceptions[0].value is eio
+
     class failure_handling:
         def fast_failures(self):
             with raises(UnexpectedExit):
@@ -653,7 +665,7 @@ class Runner_:
                     assert repr(e) == expected.format(_)
 
         class UnexpectedExit_str:
-            def setup(self):
+            def setup_method(self):
                 def lines(prefix):
                     prefixed = "\n".join(
                         "{} {}".format(prefix, x) for x in range(1, 26)
@@ -978,7 +990,7 @@ stderr 25
             """
             watchers = [
                 Responder(pattern=key, response=value)
-                for key, value in iteritems(kwargs.pop("responses"))
+                for key, value in kwargs.pop("responses").items()
             ]
             kwargs["klass"] = klass = self._mock_stdin_writer()
             runner = self._runner(**kwargs)
@@ -1019,11 +1031,6 @@ stderr 25
 
         def multiple_patterns_works_as_expected(self):
             calls = [call("betty"), call("carnival")]
-            # Technically, I'd expect 'betty' to get called before 'carnival',
-            # but under Python 3 it's reliably backwards from Python 2.
-            # In real world situations where each prompt sits & waits for its
-            # response, this probably wouldn't be an issue, so using
-            # any_order=True for now. Thanks again Python 3.
             self._expect_response(
                 out="beep boop I am a robot",
                 responses={"boop": "betty", "robot": "carnival"},
@@ -1231,7 +1238,7 @@ stderr 25
         @skip_if_windows
         @patch("invoke.terminals.tty")
         def setcbreak_called_on_tty_stdins(self, mock_tty, mock_termios):
-            mock_termios.tcgetattr.return_value = make_tcattrs(echo=True)
+            mock_termios.tcgetattr.return_value = _make_tcattrs(echo=True)
             self._run(_)
             mock_tty.setcbreak.assert_called_with(sys.stdin)
 
@@ -1262,7 +1269,7 @@ stderr 25
         ):
             # Get already-cbroken attrs since that's an easy way to get the
             # right format/layout
-            attrs = make_tcattrs(echo=True)
+            attrs = _make_tcattrs(echo=True)
             mock_termios.tcgetattr.return_value = attrs
             self._run(_)
             # Ensure those old settings are being restored
@@ -1276,7 +1283,7 @@ stderr 25
             self, mock_tty, mock_termios
         ):
             # This test is re: GH issue #303
-            sentinel = make_tcattrs(echo=True)
+            sentinel = _make_tcattrs(echo=True)
             mock_termios.tcgetattr.return_value = sentinel
             # Don't actually bubble up the KeyboardInterrupt...
             try:
@@ -1300,7 +1307,7 @@ stderr 25
             # Test both bytes and ints versions of CC values, since docs
             # disagree with at least some platforms' realities on that.
             for is_ints in (True, False):
-                mock_termios.tcgetattr.return_value = make_tcattrs(
+                mock_termios.tcgetattr.return_value = _make_tcattrs(
                     cc_is_ints=is_ints
                 )
                 self._run(_)
@@ -1334,7 +1341,7 @@ stderr 25
                 mock_stdin = Mock()
                 runner.write_proc_stdin = mock_stdin
                 runner.run(_, pty=pty)
-                mock_stdin.assert_called_once_with(u"\x03")
+                mock_stdin.assert_called_once_with("\x03")
 
     class timeout:
         def start_timer_called_with_config_value(self):
@@ -1392,14 +1399,14 @@ Stderr: already printed
 
         def run_always_stops_timer(self):
             runner = _GenericExceptingRunner(Context())
-            runner.stop_timer = Mock()
+            runner._timer = Mock()
             with raises(_GenericException):
                 runner.run(_)
-            runner.stop_timer.assert_called_once_with()
+            runner._timer.cancel.assert_called_once_with()
 
-        def stop_timer_cancels_timer(self):
+        def stop_cancels_timer(self):
             runner = self._mocked_timer()
-            runner.stop_timer()
+            runner.stop()
             runner._timer.cancel.assert_called_once_with()
 
         def timer_aliveness_is_test_of_timing_out(self):
@@ -1730,10 +1737,10 @@ class Result_:
         assert Result().env == {}
 
     def stdout_defaults_to_empty_string(self):
-        assert Result().stdout == u""
+        assert Result().stdout == ""
 
     def stderr_defaults_to_empty_string(self):
-        assert Result().stderr == u""
+        assert Result().stderr == ""
 
     def exited_defaults_to_zero(self):
         assert Result().exited == 0
@@ -1745,7 +1752,7 @@ class Result_:
         assert repr(Result(command="foo")) == "<Result cmd='foo' exited=0>"
 
     class tail:
-        def setup(self):
+        def setup_method(self):
             self.sample = "\n".join(str(x) for x in range(25))
 
         def returns_last_10_lines_of_given_stream_plus_whitespace(self):
@@ -1779,11 +1786,6 @@ class Result_:
 24"""
             tail = Result(stderr=self.sample).tail("stderr", count=2)
             assert tail == expected
-
-        @patch("invoke.runners.encode_output")
-        def encodes_with_result_encoding(self, encode):
-            Result(stdout="foo", encoding="utf-16").tail("stdout")
-            encode.assert_called_once_with("\n\nfoo", "utf-16")
 
 
 class Promise_:

@@ -3,7 +3,6 @@
 # Support setuptools only, distutils has a divergent and more annoying API and
 # few folks will lack setuptools.
 from setuptools import setup, find_packages
-import sys
 
 # Version info -- read without importing
 _locals = {}
@@ -11,10 +10,7 @@ with open("invoke/_version.py") as fp:
     exec(fp.read(), None, _locals)
 version = _locals["__version__"]
 
-# PyYAML ships a split Python 2/3 codebase. Unfortunately, some pip versions
-# attempt to interpret both halves of PyYAML, yielding SyntaxErrors. Thus, we
-# exclude whichever appears inappropriate for the installing interpreter.
-exclude = ["*.yaml3" if sys.version_info[0] == 2 else "*.yaml2"]
+exclude = []
 
 # Frankenstein long_description
 long_description = """
@@ -24,7 +20,7 @@ For a high level introduction, including example code, please see `our main
 project website <https://pyinvoke.org>`_; or for detailed API docs, see `the
 versioned API website <https://docs.pyinvoke.org>`_.
 """.format(
-    version, open("README.rst").read()
+    open("README.rst").read()
 )
 
 
@@ -44,6 +40,7 @@ setup(
         "Changelog": "https://www.pyinvoke.org/changelog.html",
         "CI": "https://app.circleci.com/pipelines/github/pyinvoke/invoke",
     },
+    python_requires=">=3.6",
     packages=find_packages(exclude=exclude),
     include_package_data=True,
     entry_points={
@@ -63,15 +60,13 @@ setup(
         "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.4",
-        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
         "Topic :: Software Development",
         "Topic :: Software Development :: Build Tools",
         "Topic :: Software Development :: Libraries",
