@@ -16,6 +16,8 @@ exclude = []
 long_description = """
 {}
 
+Note: this is a fork with custom changes to fullfil my usecase.
+
 For a high level introduction, including example code, please see `our main
 project website <https://pyinvoke.org>`_; or for detailed API docs, see `the
 versioned API website <https://docs.pyinvoke.org>`_.
@@ -27,7 +29,7 @@ versioned API website <https://docs.pyinvoke.org>`_.
 setup(
     name="invoke",
     version=version,
-    description="Pythonic task execution",
+    description="(Fork) Pythonic task execution",
     license="BSD",
     long_description=long_description,
     author="Jeff Forcier",
