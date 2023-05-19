@@ -27,7 +27,7 @@ versioned API website <https://docs.pyinvoke.org>`_.
 
 
 setup(
-    name="invoke",
+    name="neoxelox-invoke",
     version=version,
     description="(Fork) Pythonic task execution",
     license="BSD",
