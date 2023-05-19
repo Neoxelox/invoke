@@ -766,7 +766,7 @@ class Program:
         opts = "[--options] " if tuples else ""
         print(header.format(self.binary, name, opts))
         print("")
-        print("Docstring:")
+        print("Description:")
         if docstring:
             # Really wish textwrap worked better for this.
             for line in docstring.splitlines():
