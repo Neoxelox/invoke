@@ -2,7 +2,9 @@ import copy
 import json
 import os
 import types
+from types import ModuleType
 from os.path import join, splitext, expanduser
+from importlib.util import spec_from_loader
 
 from .env import Environment
 from .exceptions import UnknownFileType, UnpicklableConfigMember
@@ -20,7 +22,11 @@ except ImportError:  # PyPy3
 def load_source(name, path):
     if not os.path.exists(path):
         return {}
-    return vars(SourceFileLoader("mod", path).load_module())
+    loader = SourceFileLoader("mod", path)
+    mod = ModuleType("mod")
+    mod.__spec__ = spec_from_loader("mod", loader)
+    loader.exec_module(mod)
+    return vars(mod)
 
 
 class DataProxy:
@@ -895,8 +901,7 @@ class Config(DataProxy):
         with open(path) as fd:
             return yaml.safe_load(fd)
 
-    def _load_yml(self, path):
-        return self._load_yaml(path)
+    _load_yml = _load_yaml
 
     def _load_json(self, path):
         with open(path) as fd:

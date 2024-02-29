@@ -2,6 +2,8 @@
 Changelog
 =========
 
+- :support:`675` Implement `importlib` and deprecate `imp` module. Patches
+  provided by Jesse P. Johnson
 - :support:`901 backported` (via :issue:`903`) Tweak test suite ``setup``
   methods to be named ``setup_method`` so pytest stops whining about it. Patch
   via Jesse P. Johnson.
